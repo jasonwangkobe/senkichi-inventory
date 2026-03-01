@@ -3,157 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>千吉门店库存系统</title>
+    <title>千吉库存系统</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: #f2f2f7; margin: 0; padding: 15px; }
         .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        h1 { text-align: center; color: #333; font-size: 22px; margin-top: 0; }
-        .user-info { text-align: center; color: #666; font-size: 14px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed #ccc;}
+        h1 { text-align: center; color: #333; font-size: 22px; margin-bottom: 10px; }
+        .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; }
+        .tab-btn { padding: 8px 20px; border-radius: 20px; border: 1px solid #ddd; background: #f8f8f8; cursor: pointer; font-size: 14px; transition: 0.3s; }
+        .tab-btn.active { background: #007aff; color: white; border-color: #007aff; }
+        .user-info { text-align: center; color: #666; font-size: 13px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed #eee;}
         .item-card { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee; }
-        .item-card:last-child { border-bottom: none; }
-        .item-info { flex-grow: 1; }
-        .item-name { font-size: 18px; font-weight: bold; color: #1c1c1e; margin-bottom: 4px; }
-        .item-stock { font-size: 14px; color: #8e8e93; }
         .btn-group { display: flex; gap: 8px; }
-        button { border: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; color: white; font-weight: bold; transition: all 0.2s; }
-        button:disabled { background-color: #ccc !important; cursor: not-allowed; }
+        button { border: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; color: white; font-weight: bold; }
         .btn-in { background-color: #34c759; } 
         .btn-out { background-color: #ff3b30; } 
-        .btn-switch { background-color: #e5e5ea; color: #333; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px; font-weight: normal;}
-        .loading { text-align: center; color: #8e8e93; margin: 20px 0; font-size: 14px; }
-        .stock-number { font-weight: bold; color: #333; transition: color 0.5s ease; font-size: 16px; }
+        .btn-switch { background-color: #e5e5ea; color: #333; padding: 3px 6px; border-radius: 4px; font-size: 11px; margin-left: 5px; }
+        .loading { text-align: center; color: #8e8e93; margin: 20px 0; }
+        .stock-num { font-weight: bold; font-size: 16px; transition: 0.5s; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>烧鸟千吉 - 门店操作台</h1>
+        <h1 id="title">烧鸟千吉 - 店面</h1>
         
-        <div class="user-info" id="user-display">正在验证安全访问权限...</div>
-        <div id="loading" class="loading">正在加载实时库存...</div>
+        <div class="user-info" id="user-display">正在验证...</div>
+
+        <div class="tabs" id="admin-tabs" style="display: none;">
+            <div class="tab-btn active" id="tab-shop" onclick="switchTab('店面库存')">店面库存</div>
+            <div class="tab-btn" id="tab-home" onclick="switchTab('家里库存')">家里库存</div>
+        </div>
+        
+        <div id="loading" class="loading">正在同步数据...</div>
         <div id="inventory-list"></div>
     </div>
 
     <script>
-        // ⚠️ 【极其重要】：别忘了再次粘贴你真实的 Google 长链接！
-        const API_URL = "https://script.google.com/macros/s/AKfycbzvxP2_Eo-AuCvgjRxB6ks1Qiq-9-ispw0D-wkJz90R0CzZmGApW4ovph_dCgs0jXd_/exec";
+        // ⚠️ 请务必在此处粘贴你真实的 Google Apps Script 部署链接
+        const API_URL = "https://script.google.com/macros/s/AKfycbzvxP2_Eo-AuCvgjRxB6ks1Qiq-9-ispw0D-wkJz90R0CzZmGApW4ovph_dCgs0jXd_/exec"; 
+        let currentSheet = "店面库存";
 
+        // 核心逻辑：根据密码分流身份
         function checkUser() {
-            let currentUser = localStorage.getItem('senkichi_user');
-            if (!currentUser) {
-                const shopPassword = prompt("【安全验证】请输入千吉内部系统访问密码：");
-                if (shopPassword !== "0642563135") { 
-                    alert("密码错误！禁止访问。");
-                    document.getElementById('user-display').innerText = "未授权访问，请联系店长。";
-                    document.getElementById('loading').style.display = 'none';
-                    return null; 
-                }
-                currentUser = prompt("验证通过！请输入您的操作员姓名（限内部员工，如：林）：");
-                if (currentUser && currentUser.trim() !== "") {
-                    localStorage.setItem('senkichi_user', currentUser);
+            let user = localStorage.getItem('senkichi_user');
+            
+            if (!user) {
+                const pass = prompt("【安全验证】请输入千吉内部系统密码：");
+                
+                if (pass === "871121") {
+                    // 1. 输入老板密码，直接识别为老板，解锁全部功能
+                    user = "老板";
+                    localStorage.setItem('senkichi_user', user);
+                } else if (pass === "0642563135") {
+                    // 2. 输入员工密码，要求输入姓名
+                    user = prompt("密码验证通过！请输入您的姓名（如：林）：");
+                    if (user && user.trim() !== "") {
+                        localStorage.setItem('senkichi_user', user);
+                    } else {
+                        alert("必须输入姓名才能进入！");
+                        location.reload();
+                        return null;
+                    }
                 } else {
-                    alert("必须输入姓名才能进入系统！请刷新页面重试。");
+                    alert("密码错误，禁止访问！");
                     document.getElementById('user-display').innerText = "未授权访问";
                     document.getElementById('loading').style.display = 'none';
                     return null;
                 }
             }
-            document.getElementById('user-display').innerHTML = `当前操作人: <strong>${currentUser}</strong> <button class="btn-switch" onclick="switchUser()">退出登录</button>`;
-            return currentUser;
+            
+            // 如果身份是老板，显示切换选项卡
+            if (user === "老板") {
+                document.getElementById('admin-tabs').style.display = 'flex';
+            }
+
+            document.getElementById('user-display').innerHTML = `当前操作人: <strong>${user}</strong> <button class="btn-switch" onclick="logout()">退出</button>`;
+            return user;
         }
 
-        function switchUser() {
-            localStorage.removeItem('senkichi_user');
-            location.reload();
+        function logout() { localStorage.removeItem('senkichi_user'); location.reload(); }
+
+        function switchTab(sheetName) {
+            currentSheet = sheetName;
+            document.getElementById('tab-shop').classList.toggle('active', sheetName === '店面库存');
+            document.getElementById('tab-home').classList.toggle('active', sheetName === '家里库存');
+            document.getElementById('title').innerText = sheetName === '店面库存' ? "烧鸟千吉 - 店面" : "王总私仓 - 家里";
+            loadInventory();
         }
 
         async function loadInventory() {
-            if (!checkUser()) return; 
+            const user = checkUser();
+            if (!user) return;
             document.getElementById('loading').style.display = 'block';
             document.getElementById('inventory-list').innerHTML = '';
+            
             try {
-                const response = await fetch(API_URL);
-                const data = await response.json();
-                renderList(data);
-            } catch (error) {
-                document.getElementById('loading').innerText = "加载失败，请检查 API 链接是否正确。";
-            } finally {
-                if(document.getElementById('loading').innerText === "正在加载实时库存...") {
-                    document.getElementById('loading').style.display = 'none';
-                }
-            }
+                const resp = await fetch(`${API_URL}?sheet=${currentSheet}`);
+                const data = await resp.json();
+                render(data);
+            } catch (e) { document.getElementById('loading').innerText = "数据加载失败，请检查 API 链接。"; }
+            finally { document.getElementById('loading').style.display = 'none'; }
         }
 
-        function renderList(data) {
-            const listContainer = document.getElementById('inventory-list');
+        function render(data) {
+            const container = document.getElementById('inventory-list');
             data.forEach(item => {
-                if(!item.product) return; 
+                if(!item.product) return;
                 const card = document.createElement('div');
                 card.className = 'item-card';
-                // 巧妙之处：给每个库存数字和按钮加上了专属 ID
                 card.innerHTML = `
-                    <div class="item-info">
-                        <div class="item-name">${item.product}</div>
-                        <div class="item-stock">当前库存: <span id="stock-${item.product}" class="stock-number">${item.stock}</span></div>
+                    <div>
+                        <div style="font-weight:bold; font-size: 17px;">${item.product}</div>
+                        <div style="color:#8e8e93;font-size:13px">当前库存: <span id="s-${item.product}" class="stock-num">${item.stock}</span></div>
                     </div>
                     <div class="btn-group">
-                        <button class="btn-in" id="btn-in-${item.product}" onclick="updateStock('${item.product}', '入库')">入库</button>
-                        <button class="btn-out" id="btn-out-${item.product}" onclick="updateStock('${item.product}', '出库')">出库</button>
-                    </div>
-                `;
-                listContainer.appendChild(card);
+                        <button class="btn-in" id="bi-${item.product}" onclick="update('${item.product}','入库')">入库</button>
+                        <button class="btn-out" id="bo-${item.product}" onclick="update('${item.product}','出库')">出库</button>
+                    </div>`;
+                container.appendChild(card);
             });
         }
 
-        async function updateStock(product, action) {
-            let currentUser = checkUser();
-            if (!currentUser) return;
+        async function update(prod, act) {
+            const user = localStorage.getItem('senkichi_user');
+            const val = prompt(`【${currentSheet}】请输入 ${prod} ${act}的数量:`);
+            if (!val || isNaN(val) || val <= 0) return;
 
-            const amountStr = prompt(`请输入【${product}】需要${action}的数量:`, "");
-            if (amountStr === null || amountStr === "") return; 
-            const amount = parseInt(amountStr);
-            if (isNaN(amount) || amount <= 0) {
-                alert("请输入有效的数字！");
-                return;
-            }
-
-            // 1. 点击后立刻让按钮变成“处理中...”，防止员工着急连续狂点
-            const btnIn = document.getElementById(`btn-in-${product}`);
-            const btnOut = document.getElementById(`btn-out-${product}`);
-            const originalInText = btnIn.innerText;
-            const originalOutText = btnOut.innerText;
-            btnIn.disabled = true;
-            btnOut.disabled = true;
-            if(action === '入库') btnIn.innerText = "处理中...";
-            if(action === '出库') btnOut.innerText = "处理中...";
-
-            const payload = { action: action, product: product, amount: amount, user: currentUser };
+            const b1 = document.getElementById(`bi-${prod}`);
+            const b2 = document.getElementById(`bo-${prod}`);
+            const originalText = act === '入库' ? b1.innerText : b2.innerText;
+            b1.disabled = b2.disabled = true;
+            if(act === '入库') b1.innerText = "..."; else b2.innerText = "...";
 
             try {
-                const response = await fetch(API_URL, {
+                const resp = await fetch(API_URL, {
                     method: 'POST',
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({ action: act, product: prod, amount: val, user: user, sheet: currentSheet })
                 });
-                const result = await response.json();
-                
-                if (result.status === "success") {
-                    // 2. 核心提速点：不再重新加载网页！直接把返回的最新数字塞进对应的格子里
-                    const stockSpan = document.getElementById(`stock-${product}`);
-                    stockSpan.innerText = result.newStock;
-                    
-                    // 3. 视觉反馈：数字变成绿色闪烁一下，提示操作成功
-                    stockSpan.style.color = "#34c759";
-                    setTimeout(() => { stockSpan.style.color = "#333"; }, 1500);
-                } else {
-                    alert("操作失败：" + result.message);
+                const res = await resp.json();
+                if (res.status === 'success') {
+                    const s = document.getElementById(`s-${prod}`);
+                    s.innerText = res.newStock;
+                    s.style.color = "#34c759";
+                    setTimeout(() => { s.style.color = "#333"; }, 1500);
                 }
-            } catch (error) {
-                alert("网络错误，请稍后再试。");
-            } finally {
-                // 4. 干完活，把按钮恢复原状
-                btnIn.disabled = false;
-                btnOut.disabled = false;
-                btnIn.innerText = originalInText;
-                btnOut.innerText = originalOutText;
+            } catch (e) { alert("网络错误，提交失败"); }
+            finally { 
+                b1.disabled = b2.disabled = false; 
+                b1.innerText = "入库"; b2.innerText = "出库";
             }
         }
 
