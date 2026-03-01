@@ -26,41 +26,57 @@
     <div class="container">
         <h1>烧鸟千吉 - 门店操作台</h1>
         
-        <div class="user-info" id="user-display">正在验证身份...</div>
+        <div class="user-info" id="user-display">正在验证安全访问权限...</div>
         
         <div id="loading" class="loading">正在加载实时库存...</div>
         <div id="inventory-list"></div>
     </div>
 
     <script>
-        // ⚠️ 【非常重要】：下面这行必须粘贴你 Google 部署后获得的长链接（注意不要换行）
+        // ⚠️ 【极其重要】：请务必将下方引号内的文字，替换为你真实的 Google Apps Script 部署链接！(注意不要换行)
         const API_URL = "https://script.google.com/macros/s/AKfycbzvxP2_Eo-AuCvgjRxB6ks1Qiq-9-ispw0D-wkJz90R0CzZmGApW4ovph_dCgs0jXd_/exec";
 
-        // 身份验证逻辑
+        // 升级版身份验证：带门店密码校验
         function checkUser() {
             let currentUser = localStorage.getItem('senkichi_user');
+            
             if (!currentUser) {
-                currentUser = prompt("【安全验证】请输入您的操作员姓名（如：林）进行登录：");
+                // 第一关：验证门店暗号（密码）
+                const shopPassword = prompt("【安全验证】请输入千吉内部系统访问密码：");
+                
+                // ⚠️ 这里的 "8888" 是初始密码，你可以自己改成想要的数字或字母
+                if (shopPassword !== "0642563135") { 
+                    alert("密码错误！禁止访问。");
+                    document.getElementById('user-display').innerText = "未授权访问，请联系王总。";
+                    document.getElementById('loading').style.display = 'none';
+                    return null; // 密码不对直接踢出去
+                }
+
+                // 第二关：密码对了，再输入是谁在操作
+                currentUser = prompt("验证通过！请输入您的操作员姓名（限内部员工，如：林）：");
+                
                 if (currentUser && currentUser.trim() !== "") {
                     localStorage.setItem('senkichi_user', currentUser);
                 } else {
                     alert("必须输入姓名才能进入系统！请刷新页面重试。");
                     document.getElementById('user-display').innerText = "未授权访问";
+                    document.getElementById('loading').style.display = 'none';
                     return null;
                 }
             }
-            document.getElementById('user-display').innerHTML = `当前操作人: <strong>${currentUser}</strong> <button class="btn-switch" onclick="switchUser()">切换账号</button>`;
+            
+            document.getElementById('user-display').innerHTML = `当前操作人: <strong>${currentUser}</strong> <button class="btn-switch" onclick="switchUser()">退出登录</button>`;
             return currentUser;
         }
 
-        // 切换账号逻辑
+        // 退出登录并清除身份
         function switchUser() {
             localStorage.removeItem('senkichi_user');
             location.reload();
         }
 
         async function loadInventory() {
-            if (!checkUser()) return; // 如果没登录，就不加载数据
+            if (!checkUser()) return; // 如果没过密码关，绝不加载数据
             
             document.getElementById('loading').style.display = 'block';
             document.getElementById('inventory-list').innerHTML = '';
@@ -109,7 +125,7 @@
                 return;
             }
 
-            // 【关键修改】：将操作人替换为真实的 currentUser
+            // 发送数据给后台，带上当前操作人的名字
             const payload = { action: action, product: product, amount: amount, user: currentUser };
 
             try {
