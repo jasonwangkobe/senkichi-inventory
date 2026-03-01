@@ -8,6 +8,7 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: #f2f2f7; margin: 0; padding: 15px; }
         .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         h1 { text-align: center; color: #333; font-size: 22px; margin-top: 0; }
+        .user-info { text-align: center; color: #666; font-size: 14px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed #ccc;}
         .item-card { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee; }
         .item-card:last-child { border-bottom: none; }
         .item-info { flex-grow: 1; }
@@ -15,23 +16,52 @@
         .item-stock { font-size: 14px; color: #8e8e93; }
         .btn-group { display: flex; gap: 8px; }
         button { border: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; color: white; font-weight: bold; }
-        .btn-in { background-color: #34c759; } /* 绿色入库 */
-        .btn-out { background-color: #ff3b30; } /* 红色出库 */
+        .btn-in { background-color: #34c759; } 
+        .btn-out { background-color: #ff3b30; } 
+        .btn-switch { background-color: #e5e5ea; color: #333; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px; font-weight: normal;}
         .loading { text-align: center; color: #8e8e93; margin: 20px 0; font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>烧鸟千吉 - 门店操作台</h1>
+        
+        <div class="user-info" id="user-display">正在验证身份...</div>
+        
         <div id="loading" class="loading">正在加载实时库存...</div>
         <div id="inventory-list"></div>
     </div>
 
     <script>
-        // ⚠️ 【非常重要】：将下面引号里的内容，替换成你刚才在 Google 部署后获得的长链接！
+        // ⚠️ 【非常重要】：下面这行必须粘贴你 Google 部署后获得的长链接（注意不要换行）
         const API_URL = "https://script.google.com/macros/s/AKfycbzvxP2_Eo-AuCvgjRxB6ks1Qiq-9-ispw0D-wkJz90R0CzZmGApW4ovph_dCgs0jXd_/exec";
 
+        // 身份验证逻辑
+        function checkUser() {
+            let currentUser = localStorage.getItem('senkichi_user');
+            if (!currentUser) {
+                currentUser = prompt("【安全验证】请输入您的操作员姓名（如：林）进行登录：");
+                if (currentUser && currentUser.trim() !== "") {
+                    localStorage.setItem('senkichi_user', currentUser);
+                } else {
+                    alert("必须输入姓名才能进入系统！请刷新页面重试。");
+                    document.getElementById('user-display').innerText = "未授权访问";
+                    return null;
+                }
+            }
+            document.getElementById('user-display').innerHTML = `当前操作人: <strong>${currentUser}</strong> <button class="btn-switch" onclick="switchUser()">切换账号</button>`;
+            return currentUser;
+        }
+
+        // 切换账号逻辑
+        function switchUser() {
+            localStorage.removeItem('senkichi_user');
+            location.reload();
+        }
+
         async function loadInventory() {
+            if (!checkUser()) return; // 如果没登录，就不加载数据
+            
             document.getElementById('loading').style.display = 'block';
             document.getElementById('inventory-list').innerHTML = '';
             try {
@@ -68,6 +98,9 @@
         }
 
         async function updateStock(product, action) {
+            let currentUser = checkUser();
+            if (!currentUser) return;
+
             const amountStr = prompt(`请输入【${product}】需要${action}的数量:`, "");
             if (amountStr === null || amountStr === "") return; 
             const amount = parseInt(amountStr);
@@ -76,8 +109,8 @@
                 return;
             }
 
-            // 记录提交人信息，方便后续核算对账
-            const payload = { action: action, product: product, amount: amount, user: "店面员工(林)" };
+            // 【关键修改】：将操作人替换为真实的 currentUser
+            const payload = { action: action, product: product, amount: amount, user: currentUser };
 
             try {
                 const response = await fetch(API_URL, {
@@ -87,7 +120,7 @@
                 const result = await response.json();
                 
                 if (result.status === "success") {
-                    loadInventory(); // 成功后自动刷新最新库存
+                    loadInventory(); // 成功后刷新最新库存
                 } else {
                     alert("操作失败：" + result.message);
                 }
@@ -99,5 +132,4 @@
         window.onload = loadInventory;
     </script>
 </body>
-
 </html>
