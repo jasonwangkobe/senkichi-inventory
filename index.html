@@ -20,29 +20,27 @@
         /* 列表行样式 */
         .item-row { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #f2f2f7; }
         .item-row:last-child { border-bottom: none; }
-        .item-name-cell { flex: 2; }
-        .item-name { font-weight: bold; font-size: 16px; color: #1c1c1e; }
-        .item-stock { font-size: 12px; color: #8e8e93; margin-top: 2px; }
+        .item-name-cell { flex: 2; min-width: 80px; }
+        .item-name { font-weight: bold; font-size: 15px; color: #1c1c1e; }
+        .item-stock { font-size: 11px; color: #8e8e93; margin-top: 2px; }
         
-        /* 批量输入框样式 */
-        .input-group { flex: 3; display: flex; gap: 6px; justify-content: flex-end; }
-        .qty-input { width: 45px; padding: 10px 5px; border: 1px solid #ddd; border-radius: 8px; text-align: center; font-size: 15px; -webkit-appearance: none; }
-        .in-input { border-left: 4px solid #34c759; background-color: #fafffb; }
-        .out-input { border-left: 4px solid #ff3b30; background-color: #fffafa; }
+        /* 输入组样式 */
+        .input-group { flex: 4; display: flex; gap: 4px; justify-content: flex-end; align-items: center; }
+        .qty-input { width: 38px; padding: 8px 4px; border: 1px solid #ddd; border-radius: 6px; text-align: center; font-size: 14px; -webkit-appearance: none; }
+        .in-input { border-left: 3px solid #34c759; background-color: #fafffb; }
+        .out-input { border-left: 3px solid #ff3b30; background-color: #fffafa; }
         
-        /* 调拨界面特有样式 */
-        .transfer-card { background: #f9f9fb; padding: 20px; border-radius: 12px; border: 1px solid #e5e5ea; margin-top: 10px; }
-        .transfer-row { margin-bottom: 20px; }
-        .transfer-label { display: block; font-size: 14px; color: #8e8e93; margin-bottom: 8px; font-weight: bold; }
-        select, .transfer-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; box-sizing: border-box; background: white; }
+        /* 调拨特有样式 - 橙色区分 */
+        .trans-input { border-left: 3px solid #ff9500; background-color: #fffaf2; width: 42px; }
+        .trans-label { font-size: 10px; color: #ff9500; margin-bottom: 2px; text-align: center; font-weight: bold;}
+        .input-unit { display: flex; flex-direction: column; align-items: center; }
 
         /* 底部固定提交按钮 */
         .footer-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); padding: 15px; border-top: 1px solid #ddd; backdrop-filter: blur(10px); display: flex; justify-content: center; z-index: 1000; }
-        .submit-btn { width: 90%; max-width: 400px; background: #007aff; color: white; border: none; padding: 16px; border-radius: 12px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,122,255,0.3); cursor: pointer; }
-        .submit-btn:active { opacity: 0.7; }
+        .submit-btn { width: 90%; max-width: 400px; background: #007aff; color: white; border: none; padding: 16px; border-radius: 12px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,122,255,0.3); }
         .submit-btn:disabled { background: #c7c7cc; box-shadow: none; }
 
-        .tag-sum { background: #ff9500; color: white; padding: 2px 5px; border-radius: 4px; font-size: 10px; margin-left: 5px; vertical-align: middle; }
+        .tag-sum { background: #ff9500; color: white; padding: 2px 5px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
         .loading { text-align: center; padding: 30px; color: #8e8e93; }
     </style>
 </head>
@@ -54,34 +52,11 @@
         <div class="tabs" id="admin-tabs" style="display: none;">
             <div class="tab-btn active" id="btn-shop" onclick="switchTab('店面库存')">店面库存</div>
             <div class="tab-btn" id="btn-home" onclick="switchTab('家里库存')">家里库存</div>
-            <div class="tab-btn" id="btn-transfer" onclick="switchTab('库存调拨')">📦 内部调拨</div>
             <div class="tab-btn" id="btn-total" onclick="switchTab('总库存')">📊 汇总分析</div>
         </div>
 
         <div id="loading" class="loading">加载中...</div>
-
         <div id="inventory-list"></div>
-
-        <div id="transfer-ui" style="display: none;">
-            <div class="transfer-card">
-                <div class="transfer-row">
-                    <span class="transfer-label">1. 选择要移动的商品</span>
-                    <select id="transfer-product-select"></select>
-                </div>
-                <div class="transfer-row">
-                    <span class="transfer-label">2. 调拨方向</span>
-                    <select id="transfer-direction">
-                        <option value="shop-to-home">店面 ➔ 家里 (搬回仓库)</option>
-                        <option value="home-to-shop">家里 ➔ 店面 (补货到店)</option>
-                    </select>
-                </div>
-                <div class="transfer-row">
-                    <span class="transfer-label">3. 数量</span>
-                    <input type="number" id="transfer-amount" class="transfer-input" placeholder="请输入数字" inputmode="numeric">
-                </div>
-                <button class="submit-btn" style="width:100%;" id="btn-do-transfer" onclick="submitTransfer()">确定调拨</button>
-            </div>
-        </div>
     </div>
 
     <div class="footer-bar" id="footer">
@@ -89,11 +64,10 @@
     </div>
 
     <script>
+        // 请确保此处的 URL 与您最新的 GAS 部署链接一致
         const API_URL = "https://script.google.com/macros/s/AKfycbzvxP2_Eo-AuCvgjRxB6ks1Qiq-9-ispw0D-wkJz90R0CzZmGApW4ovph_dCgs0jXd_/exec"; 
         let currentSheet = "店面库存";
-        let allProductNames = []; // 存储商品名供调拨下拉框使用
 
-        // 核心登录逻辑
         function checkUser() {
             let user = localStorage.getItem('senkichi_user');
             if (!user) {
@@ -113,62 +87,31 @@
                     }
                 } else {
                     alert("密码错误，禁止访问。");
-                    document.getElementById('user-display').innerText = "未授权访问";
                     return null;
                 }
             }
-            if (user === "老板") {
-                document.getElementById('admin-tabs').style.display = 'flex';
-            }
+            if (user === "老板") document.getElementById('admin-tabs').style.display = 'flex';
             document.getElementById('user-display').innerHTML = `当前人: <strong>${user}</strong> | <span onclick="logout()" style="color:#007aff; cursor:pointer;">退出</span>`;
             return user;
         }
 
         function logout() { localStorage.removeItem('senkichi_user'); location.reload(); }
 
-        // 切换仓库视图
         function switchTab(s) {
             currentSheet = s;
             document.getElementById('btn-shop').classList.toggle('active', s === '店面库存');
             document.getElementById('btn-home').classList.toggle('active', s === '家里库存');
-            document.getElementById('btn-transfer').classList.toggle('active', s === '库存调拨');
             document.getElementById('btn-total').classList.toggle('active', s === '总库存');
-            
-            const list = document.getElementById('inventory-list');
-            const transUI = document.getElementById('transfer-ui');
-            const footer = document.getElementById('footer');
-            const title = document.getElementById('title');
-
-            if (s === '库存调拨') {
-                title.innerText = "内部库存调拨";
-                list.style.display = 'none';
-                transUI.style.display = 'block';
-                footer.style.display = 'none';
-                populateProductSelect();
-            } else {
-                title.innerText = (s === '总库存') ? "全库汇总报表" : "烧鸟千吉 - " + s.replace("库存","");
-                list.style.display = 'block';
-                transUI.style.display = 'none';
-                footer.style.display = (s === '总库存') ? 'none' : 'flex';
-                loadInventory();
-            }
-        }
-
-        // 填充调拨下拉列表
-        function populateProductSelect() {
-            const select = document.getElementById('transfer-product-select');
-            if (allProductNames.length === 0) {
-                select.innerHTML = '<option>正在加载商品列表...</option>';
-                return;
-            }
-            select.innerHTML = allProductNames.map(name => `<option value="${name}">${name}</option>`).join('');
+            document.getElementById('title').innerText = (s === '总库存') ? "全库汇总报表" : "烧鸟千吉 - " + s.replace("库存","");
+            document.getElementById('footer').style.display = (s === '总库存') ? 'none' : 'flex';
+            loadInventory();
         }
 
         async function loadInventory() {
-            if (!checkUser()) return;
+            const user = checkUser();
+            if (!user) return;
             const list = document.getElementById('inventory-list');
             const loader = document.getElementById('loading');
-            
             loader.style.display = 'block';
             list.innerHTML = '';
             
@@ -176,36 +119,47 @@
                 const res = await fetch(`${API_URL}?sheet=${currentSheet}`);
                 const data = await res.json();
                 
-                // 记录商品名称（排除汇总页）
-                if (currentSheet !== '总库存') {
-                    allProductNames = data.map(item => item.product);
-                }
-
                 data.forEach(item => {
                     const isTotalView = currentSheet === '总库存';
+                    const isBoss = (user === "老板");
                     const row = document.createElement('div');
                     row.className = 'item-row';
+                    
+                    // 确定调拨的方向文本
+                    let transLabel = currentSheet === "店面库存" ? "拨往家里" : "拨往店面";
+
                     row.innerHTML = `
                         <div class="item-name-cell">
                             <div class="item-name">${item.product}${isTotalView ? '<span class="tag-sum">SUM</span>' : ''}</div>
-                            <div class="item-stock">当前余量: <span style="font-weight:bold; color:#1c1c1e;">${item.stock}</span></div>
+                            <div class="item-stock">余量: <strong>${item.stock}</strong></div>
                         </div>
                         ${!isTotalView ? `
                         <div class="input-group">
-                            <input type="number" class="qty-input in-input" placeholder="入库" data-prod="${item.product}" data-act="入库" inputmode="numeric">
-                            <input type="number" class="qty-input out-input" placeholder="出库" data-prod="${item.product}" data-act="出库" inputmode="numeric">
-                        </div>` : '<div style="flex:3; text-align:right; font-size:12px; color:#007aff;">仅供查看</div>'}
+                            <div class="input-unit">
+                                <span style="font-size:9px; color:#34c759;">入库</span>
+                                <input type="number" class="qty-input in-input" data-prod="${item.product}" data-act="入库" inputmode="numeric">
+                            </div>
+                            <div class="input-unit">
+                                <span style="font-size:9px; color:#ff3b30;">出库</span>
+                                <input type="number" class="qty-input out-input" data-prod="${item.product}" data-act="出库" inputmode="numeric">
+                            </div>
+                            ${isBoss ? `
+                            <div class="input-unit">
+                                <span class="trans-label">${transLabel}</span>
+                                <input type="number" class="qty-input trans-input" data-prod="${item.product}" data-act="调拨" inputmode="numeric">
+                            </div>
+                            ` : ''}
+                        </div>` : '<div style="flex:4; text-align:right; font-size:12px; color:#007aff;">仅供查看</div>'}
                     `;
                     list.appendChild(row);
                 });
             } catch (e) {
-                loader.innerText = "同步失败，请刷新重试。";
+                loader.innerText = "数据同步失败";
             } finally {
                 loader.style.display = 'none';
             }
         }
 
-        // 提交批量入/出库数据
         async function submitBulk() {
             const user = localStorage.getItem('senkichi_user');
             const inputs = document.querySelectorAll('.qty-input');
@@ -214,19 +168,25 @@
             inputs.forEach(input => {
                 const val = parseInt(input.value);
                 if (val > 0) {
-                    tasks.push({
-                        product: input.getAttribute('data-prod'),
-                        action: input.getAttribute('data-act'),
-                        amount: val
-                    });
+                    const action = input.getAttribute('data-act');
+                    const product = input.getAttribute('data-prod');
+                    
+                    if (action === "调拨") {
+                        // 如果在店面页填调拨，就是 店面 -> 家里
+                        let from = (currentSheet === "店面库存") ? "店面库存" : "家里库存";
+                        let to = (currentSheet === "店面库存") ? "家里库存" : "店面库存";
+                        tasks.push({ action: "调拨", product: product, amount: val, from: from, to: to });
+                    } else {
+                        tasks.push({ action: action, product: product, amount: val });
+                    }
                 }
             });
 
-            if (tasks.length === 0) return alert("请输入需要变动的数量。");
+            if (tasks.length === 0) return alert("请先输入变动数量。");
             
             const btn = document.getElementById('submit-bulk');
             btn.disabled = true;
-            btn.innerText = "正在同步至 Google...";
+            btn.innerText = "正在同步...";
 
             try {
                 const resp = await fetch(API_URL, {
@@ -235,57 +195,13 @@
                 });
                 const res = await resp.json();
                 if (res.status === 'success') {
-                    alert("批量更新成功！");
+                    alert("同步成功！");
                     location.reload();
                 }
             } catch (e) {
                 alert("提交失败，请重试。");
                 btn.disabled = false;
                 btn.innerText = "批量写入数据";
-            }
-        }
-
-        // 【新增】提交调拨请求
-        async function submitTransfer() {
-            const user = localStorage.getItem('senkichi_user');
-            const product = document.getElementById('transfer-product-select').value;
-            const direction = document.getElementById('transfer-direction').value;
-            const amount = parseInt(document.getElementById('transfer-amount').value);
-
-            if (!amount || amount <= 0) return alert("请输入有效的调拨数量");
-
-            let fromSheet = direction === 'shop-to-home' ? '店面库存' : '家里库存';
-            let toSheet = direction === 'shop-to-home' ? '家里库存' : '店面库存';
-
-            if (!confirm(`确认将 ${amount}份 ${product} 从 [${fromSheet}] 移动到 [${toSheet}] 吗？`)) return;
-
-            const btn = document.getElementById('btn-do-transfer');
-            btn.disabled = true;
-            btn.innerText = "同步调拨中...";
-
-            try {
-                const resp = await fetch(API_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        user: user,
-                        tasks: [{
-                            action: "调拨",
-                            product: product,
-                            amount: amount,
-                            from: fromSheet,
-                            to: toSheet
-                        }]
-                    })
-                });
-                const res = await resp.json();
-                if (res.status === 'success') {
-                    alert("库存调拨完成！");
-                    location.reload();
-                }
-            } catch (e) {
-                alert("调拨失败，请检查网络");
-                btn.disabled = false;
-                btn.innerText = "确定调拨";
             }
         }
 
