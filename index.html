@@ -10,7 +10,7 @@
         .container { max-width: 600px; margin: 0 auto; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         h1 { text-align: center; font-size: 22px; margin: 10px 0; color: #1c1c1e; }
         
-        /* 选项卡样式 - 仅限老板 */
+        /* 选项卡样式 */
         .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; }
         .tab-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid #ddd; background: #eee; font-size: 13px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
         .tab-btn.active { background: #007aff; color: white; border-color: #007aff; font-weight: bold; }
@@ -30,9 +30,15 @@
         .in-input { border-left: 4px solid #34c759; background-color: #fafffb; }
         .out-input { border-left: 4px solid #ff3b30; background-color: #fffafa; }
         
+        /* 调拨界面特有样式 */
+        .transfer-card { background: #f9f9fb; padding: 20px; border-radius: 12px; border: 1px solid #e5e5ea; margin-top: 10px; }
+        .transfer-row { margin-bottom: 20px; }
+        .transfer-label { display: block; font-size: 14px; color: #8e8e93; margin-bottom: 8px; font-weight: bold; }
+        select, .transfer-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; box-sizing: border-box; background: white; }
+
         /* 底部固定提交按钮 */
         .footer-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); padding: 15px; border-top: 1px solid #ddd; backdrop-filter: blur(10px); display: flex; justify-content: center; z-index: 1000; }
-        .submit-btn { width: 90%; max-width: 400px; background: #007aff; color: white; border: none; padding: 16px; border-radius: 12px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,122,255,0.3); }
+        .submit-btn { width: 90%; max-width: 400px; background: #007aff; color: white; border: none; padding: 16px; border-radius: 12px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,122,255,0.3); cursor: pointer; }
         .submit-btn:active { opacity: 0.7; }
         .submit-btn:disabled { background: #c7c7cc; box-shadow: none; }
 
@@ -48,11 +54,34 @@
         <div class="tabs" id="admin-tabs" style="display: none;">
             <div class="tab-btn active" id="btn-shop" onclick="switchTab('店面库存')">店面库存</div>
             <div class="tab-btn" id="btn-home" onclick="switchTab('家里库存')">家里库存</div>
+            <div class="tab-btn" id="btn-transfer" onclick="switchTab('库存调拨')">📦 内部调拨</div>
             <div class="tab-btn" id="btn-total" onclick="switchTab('总库存')">📊 汇总分析</div>
         </div>
 
         <div id="loading" class="loading">加载中...</div>
+
         <div id="inventory-list"></div>
+
+        <div id="transfer-ui" style="display: none;">
+            <div class="transfer-card">
+                <div class="transfer-row">
+                    <span class="transfer-label">1. 选择要移动的商品</span>
+                    <select id="transfer-product-select"></select>
+                </div>
+                <div class="transfer-row">
+                    <span class="transfer-label">2. 调拨方向</span>
+                    <select id="transfer-direction">
+                        <option value="shop-to-home">店面 ➔ 家里 (搬回仓库)</option>
+                        <option value="home-to-shop">家里 ➔ 店面 (补货到店)</option>
+                    </select>
+                </div>
+                <div class="transfer-row">
+                    <span class="transfer-label">3. 数量</span>
+                    <input type="number" id="transfer-amount" class="transfer-input" placeholder="请输入数字" inputmode="numeric">
+                </div>
+                <button class="submit-btn" style="width:100%;" id="btn-do-transfer" onclick="submitTransfer()">确定调拨</button>
+            </div>
+        </div>
     </div>
 
     <div class="footer-bar" id="footer">
@@ -60,23 +89,19 @@
     </div>
 
     <script>
-        // ⚠️ 请务必在此处粘贴你真实的 Google Apps Script 部署链接
         const API_URL = "https://script.google.com/macros/s/AKfycbzvxP2_Eo-AuCvgjRxB6ks1Qiq-9-ispw0D-wkJz90R0CzZmGApW4ovph_dCgs0jXd_/exec"; 
         let currentSheet = "店面库存";
+        let allProductNames = []; // 存储商品名供调拨下拉框使用
 
-        // 核心登录逻辑：区分老板和员工
+        // 核心登录逻辑
         function checkUser() {
             let user = localStorage.getItem('senkichi_user');
-            
             if (!user) {
                 const pass = prompt("【千吉安全验证】请输入访问密码：");
-                
                 if (pass === "871121") {
-                    // 老板密码：直接识别，解锁全部权限
                     user = "老板";
                     localStorage.setItem('senkichi_user', user);
                 } else if (pass === "0642563135") {
-                    // 员工密码：需要登记姓名 (例如：林)
                     const name = prompt("密码正确。请输入您的姓名进行登记：");
                     if (name && name.trim() !== "") {
                         user = name;
@@ -92,12 +117,9 @@
                     return null;
                 }
             }
-            
-            // 老板特权：展示仓库切换标签
             if (user === "老板") {
                 document.getElementById('admin-tabs').style.display = 'flex';
             }
-
             document.getElementById('user-display').innerHTML = `当前人: <strong>${user}</strong> | <span onclick="logout()" style="color:#007aff; cursor:pointer;">退出</span>`;
             return user;
         }
@@ -109,12 +131,37 @@
             currentSheet = s;
             document.getElementById('btn-shop').classList.toggle('active', s === '店面库存');
             document.getElementById('btn-home').classList.toggle('active', s === '家里库存');
+            document.getElementById('btn-transfer').classList.toggle('active', s === '库存调拨');
             document.getElementById('btn-total').classList.toggle('active', s === '总库存');
             
-            document.getElementById('title').innerText = (s === '总库存') ? "全库汇总报表" : "烧鸟千吉 - " + s.replace("库存","");
-            // 总库汇总模式下是只读的，隐藏提交按钮
-            document.getElementById('footer').style.display = (s === '总库存') ? 'none' : 'flex';
-            loadInventory();
+            const list = document.getElementById('inventory-list');
+            const transUI = document.getElementById('transfer-ui');
+            const footer = document.getElementById('footer');
+            const title = document.getElementById('title');
+
+            if (s === '库存调拨') {
+                title.innerText = "内部库存调拨";
+                list.style.display = 'none';
+                transUI.style.display = 'block';
+                footer.style.display = 'none';
+                populateProductSelect();
+            } else {
+                title.innerText = (s === '总库存') ? "全库汇总报表" : "烧鸟千吉 - " + s.replace("库存","");
+                list.style.display = 'block';
+                transUI.style.display = 'none';
+                footer.style.display = (s === '总库存') ? 'none' : 'flex';
+                loadInventory();
+            }
+        }
+
+        // 填充调拨下拉列表
+        function populateProductSelect() {
+            const select = document.getElementById('transfer-product-select');
+            if (allProductNames.length === 0) {
+                select.innerHTML = '<option>正在加载商品列表...</option>';
+                return;
+            }
+            select.innerHTML = allProductNames.map(name => `<option value="${name}">${name}</option>`).join('');
         }
 
         async function loadInventory() {
@@ -126,10 +173,14 @@
             list.innerHTML = '';
             
             try {
-                // 向后台请求特定表的数据
                 const res = await fetch(`${API_URL}?sheet=${currentSheet}`);
                 const data = await res.json();
                 
+                // 记录商品名称（排除汇总页）
+                if (currentSheet !== '总库存') {
+                    allProductNames = data.map(item => item.product);
+                }
+
                 data.forEach(item => {
                     const isTotalView = currentSheet === '总库存';
                     const row = document.createElement('div');
@@ -148,13 +199,13 @@
                     list.appendChild(row);
                 });
             } catch (e) {
-                loader.innerText = "同步失败，请检查网络或 API 链接。";
+                loader.innerText = "同步失败，请刷新重试。";
             } finally {
                 loader.style.display = 'none';
             }
         }
 
-        // 提交批量数据
+        // 提交批量入/出库数据
         async function submitBulk() {
             const user = localStorage.getItem('senkichi_user');
             const inputs = document.querySelectorAll('.qty-input');
@@ -184,13 +235,57 @@
                 });
                 const res = await resp.json();
                 if (res.status === 'success') {
-                    alert("批量更新成功！数据已同步。");
-                    location.reload(); // 刷新页面清空输入并展示新库存
+                    alert("批量更新成功！");
+                    location.reload();
                 }
             } catch (e) {
                 alert("提交失败，请重试。");
                 btn.disabled = false;
                 btn.innerText = "批量写入数据";
+            }
+        }
+
+        // 【新增】提交调拨请求
+        async function submitTransfer() {
+            const user = localStorage.getItem('senkichi_user');
+            const product = document.getElementById('transfer-product-select').value;
+            const direction = document.getElementById('transfer-direction').value;
+            const amount = parseInt(document.getElementById('transfer-amount').value);
+
+            if (!amount || amount <= 0) return alert("请输入有效的调拨数量");
+
+            let fromSheet = direction === 'shop-to-home' ? '店面库存' : '家里库存';
+            let toSheet = direction === 'shop-to-home' ? '家里库存' : '店面库存';
+
+            if (!confirm(`确认将 ${amount}份 ${product} 从 [${fromSheet}] 移动到 [${toSheet}] 吗？`)) return;
+
+            const btn = document.getElementById('btn-do-transfer');
+            btn.disabled = true;
+            btn.innerText = "同步调拨中...";
+
+            try {
+                const resp = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user: user,
+                        tasks: [{
+                            action: "调拨",
+                            product: product,
+                            amount: amount,
+                            from: fromSheet,
+                            to: toSheet
+                        }]
+                    })
+                });
+                const res = await resp.json();
+                if (res.status === 'success') {
+                    alert("库存调拨完成！");
+                    location.reload();
+                }
+            } catch (e) {
+                alert("调拨失败，请检查网络");
+                btn.disabled = false;
+                btn.innerText = "确定调拨";
             }
         }
 
